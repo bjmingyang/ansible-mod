@@ -1,0 +1,13 @@
+---
+- name: debian | adding zabbix package
+  apt:
+    deb: "{{ zabbix_debian_repo_info.url }}/{{ zabbix_debian_repo_info.package }}"
+    state: "present"
+  become: true
+  register: "package_added"
+
+- name: debian | updating apt-cache (If zabbix package added)
+  apt:
+    update_cache: true
+  become: true
+  when: package_added['changed']

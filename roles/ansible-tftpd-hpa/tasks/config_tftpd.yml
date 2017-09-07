@@ -1,0 +1,38 @@
+---
+- name: config_tftpd | ensuring tftp_directory exists
+  file:
+    dest: "{{ tftp_directory }}"
+    state: directory
+    owner: tftp
+    group: tftp
+
+- name: config_tftpd | configuring tftpd
+  template:
+    src: "etc/default/tftpd-hpa.j2"
+    dest: "/etc/default/tftpd-hpa"
+    owner: root
+    group: root
+    mode: 0644
+  notify: restart tftpd-hpa
+
+- name: config_tftpd | configuring inetd
+  template:
+    src: "etc/inetd.conf.j2"
+    dest: "/etc/inetd.conf"
+    owner: root
+    group: root
+    mode: 0644
+  notify: restart tftpd-hpa
+
+- name: config_tftpd | Downloading Netboot
+  get_url:
+    url: "{{ tftp_netboot_url }}/{{ tftp_netboot_file }}"
+    dest: "{{ tftp_directory }}/{{ tftp_netboot_file }}"
+
+- name: config_tftpd | Extracting Netboot
+  unarchive:
+    src: "{{ tftp_directory }}/{{ tftp_netboot_file }}"
+    dest: "{{ tftp_directory }}"
+    copy: no
+  args:
+    creates: "{{ tftp_directory }}/pxelinux.0"

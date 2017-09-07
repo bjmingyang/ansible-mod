@@ -1,0 +1,149 @@
+---
+- name: Update CentOS (optional):
+yum update -y
+
+- name: Install EPEL:
+yum install -y epel-release
+
+- name: Disable SELinux:
+sed -i --follow-symlinks 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/sysconfig/selinux
+
+- name: Reboot Machine to take effect:
+shutdown -r now
+
+- name: Install Packages:
+yum install -y git gcc wget postgresql-server python-psycopg2 postgresql-devel python-devel libxml2-devel libxslt libffi-devel graphviz openssl-devel libxslt-devel httpd python-pip supervisor python-gunicorn
+
+
+- name: Set Up PostgreSQL (PSQL)
+Enable PSQL on Startup:
+systemctl enable postgresql
+
+- name: Initialize PSQL:
+/usr/bin/postgresql-setup initdb
+
+- name: Start PSQL Service:
+systemctl start postgresql
+
+- name: Log into PSQL:
+sudo -u postgres psql
+Create new database:
+CREATE DATABASE netbox;
+Create new user:
+CREATE USER netbox WITH PASSWORD 'somepassword';
+Grant Privs to database:
+GRANT ALL PRIVILEGES ON DATABASE netbox TO netbox;
+Exit PSQL:
+\q
+
+- name: Set PSQL to allow login:
+sed -i -e 's/ident/md5/' /var/lib/pgsql/data/pg_hba.conf
+
+- name: Restart PSQL:
+systemctl restart postgresql
+
+- name: Log into new database with new user, enter password when prompted (if you get a “netbox=>” prompt, you are good, otherwise you missed something):
+psql -U netbox -h localhost -W
+Exit PSQL:
+q
+
+
+Install NetBox Files
+
+Go find the release of Netbox you want to install from here. Grab the tar.gz URL path from the downloads section of the release. In this article, we are installing 1.6.2-r1.
+
+Download the files:
+wget https://github.com/digitalocean/netbox/archive/v1.6.2-r1.tar.gz
+Extract to /opt:
+tar -xzf v1.6.2-r1.tar.gz -C /opt
+Create a symlink (shortcut) to the netbox directory:
+ln -s /opt/netbox-1.6.2-r1/ /opt/netbox
+Run the Netbox Installer (this one takes a while and will error out of any dependencies are missing):
+sudo pip install -r /opt/netbox/requirements.txt
+Make a copy of the example config file:
+cp /opt/netbox/netbox/netbox/configuration.example.py /opt/netbox/netbox/netbox/configuration.py
+Set the server name or IP (replace “netbox.mydomain.com” with the DNS name or IP address of your server):
+sed -i --follow-symlinks "s/ALLOWED_HOSTS = []/ALLOWED_HOSTS = ['netbox.mydomain.com']/g" /opt/netbox/netbox/netbox/configuration.py
+Set Database Username:
+sed -i --follow-symlinks "s/'USER': ''/'USER': 'netbox'/g" /opt/netbox/netbox/netbox/configuration.py
+Set database password:
+sed -i --follow-symlinks "s/'PASSWORD': ''/'PASSWORD': 'somepassword'/g" /opt/netbox/netbox/netbox/configuration.py
+Set Secret Key (replace “jkC3e8tzgLrDNS0” with something else if this will be production):
+sed -i --follow-symlinks "s/SECRET_KEY = ''/SECRET_KEY = 'jkC3e8tzgLrDNS0'/g" /opt/netbox/netbox/netbox/configuration.py
+Migrate data into the database:
+/opt/netbox/netbox/manage.py migrate
+Create a Netbox User for web login (follow the prompts to create the user):
+/opt/netbox/netbox/manage.py createsuperuser
+Move static files (type “yes” to confirm):
+/opt/netbox/netbox/manage.py collectstatic
+Run a Test
+
+At this point, Netbox files are installed and we can use the built-in Django web server to test it
+
+Run the test server:
+/opt/netbox/netbox/manage.py runserver 0.0.0.0:8000 --insecure
+Visit the server by going to http://netbox.mydomain.com:8000
+You should see the UI and be able to browse through it at this point, but we are not done yet
+Netbox
+
+Web Server Integration (Apache)
+
+Now we will set up Apache to host Netbox and set everything to run as a service and startup on boot. To do this, we will be creating three files on the system using the editor VI. You can google how to use VI, but here is what you need to know for this task:
+
+Once VI is opened, hit the “i” key to enter edit mode
+After you have entered the text, hit the ESC key to exit from edit mode
+Once out of edit mode, type “:wq” to write the file and exit the app
+Create the three files listed below with their text using the listed commands
+
+vi /etc/httpd/conf.d/netbox.conf
+<VirtualHost *:80>
+    ProxyPreserveHost On
+
+    ServerName netbox.mydomain.com
+
+    Alias /static /opt/netbox/netbox/static
+
+    <Directory /opt/netbox/netbox/static>
+        Options Indexes FollowSymLinks MultiViews
+        AllowOverride None
+        Require all granted
+    </Directory>
+
+    <Location /static>
+        ProxyPass !
+    </Location>
+
+    ProxyPass / http://127.0.0.1:8001/
+    ProxyPassReverse / http://127.0.0.1:8001/
+</VirtualHost>
+
+
+vi /opt/netbox/gunicorn_config.py
+command = '/usr/bin/gunicorn'
+pythonpath = '/opt/netbox/netbox'
+bind = '0.0.0.0:8001'
+workers = 3
+user = 'apache'
+
+
+vi /etc/supervisord.d/netbox.ini
+[program:netbox]
+command = gunicorn -c /opt/netbox/gunicorn_config.py netbox.wsgi
+directory = /opt/netbox/netbox/
+user = apache
+
+
+Restart Services and Test
+
+Enable Apache for Startup:
+systemctl enable httpd
+Restart Apache:
+systemctl restart httpd
+Enable Supervisor for Startup:
+systemctl enable supervisord
+Restart Supervisor:
+systemctl restart supervisord
+Check status of Netbox service under Supervisor (you should see the Netbox service running):
+supervisorctl status
+Check status of Apache (status should show green and running):
+systemctl status httpd

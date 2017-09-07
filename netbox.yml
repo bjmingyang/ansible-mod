@@ -1,0 +1,4 @@
+- hosts: netbox
+  remote_user: centos
+  roles:
+    - { role: ansible-role-netbox }

@@ -1,0 +1,16 @@
+---
+- name: debian | Installing KVM
+  apt:
+    name: "{{ item }}"
+    state: "present"
+  become: true
+  with_items: '{{ kvm_debian_packages }}'
+
+- name: debian | Installing Additional Ubuntu Packages
+  apt:
+    name: "{{ item }}"
+    state: "present"
+  become: true
+  with_items:
+    - 'ubuntu-vm-builder'
+  when: ansible_distribution == "Ubuntu"

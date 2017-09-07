@@ -1,0 +1,42 @@
+############################
+# GRAYLOG CONFIGURATION FILE
+############################
+is_master = {{ graylog_server_master }}
+node_id_file = /etc/graylog/server/node-id
+password_secret = {{ graylog_server_password_secret }}
+root_password_sha2 = {{ graylog_server_root_password }}
+plugin_dir = plugin
+rest_listen_uri = {{ graylog_rest_listen_uri }}
+web_listen_uri = {{ graylog_web_listen_uri }}
+rotation_strategy = count
+elasticsearch_max_docs_per_index = 20000000
+elasticsearch_max_number_of_indices = 20
+retention_strategy = delete
+elasticsearch_shards = {{ graylog_es_shards }}
+elasticsearch_replicas = {{ graylog_es_replicas }}
+elasticsearch_index_prefix = graylog
+allow_leading_wildcard_searches = false
+allow_highlighting = false
+elasticsearch_cluster_name = {{ graylog_es_cluster_name }}
+elasticsearch_analyzer = standard
+output_batch_size = 500
+output_flush_interval = 1
+output_fault_count_threshold = 5
+output_fault_penalty_seconds = 30
+processbuffer_processors = 5
+outputbuffer_processors = 3
+processor_wait_strategy = blocking
+ring_size = 65536
+inputbuffer_ring_size = 65536
+inputbuffer_processors = 2
+inputbuffer_wait_strategy = blocking
+{% if graylog_message_journal_enabled %}
+message_journal_enabled = true
+message_journal_dir = {{ graylog_message_journal_dir }}
+{% endif %}
+lb_recognition_period_seconds = 3
+mongodb_uri = mongodb://localhost/graylog
+mongodb_max_connections = 1000
+mongodb_threads_allowed_to_block_multiplier = 5
+content_packs_auto_load = grok-patterns.json
+proxied_requests_thread_pool_size = 32
